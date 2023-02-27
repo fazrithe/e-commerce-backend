@@ -4,12 +4,17 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/fazrithe/e-commerce-backend/controllers"
 	"github.com/fazrithe/e-commerce-backend/initializers"
+	"github.com/fazrithe/e-commerce-backend/routes"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
 var (
-	server *gin.Engine
+	server              *gin.Engine
+	AuthController      controllers.AuthController
+	AuthRouteController routes.AuthRouteController
 )
 
 func init() {
@@ -19,6 +24,8 @@ func init() {
 	}
 
 	initializers.ConnectDB(&config)
+	AuthController = controllers.NewAuthController(initializers.DB)
+	AuthRouteController = routes.NewAuthRouteController(AuthController)
 
 	server = gin.Default()
 }
@@ -29,11 +36,22 @@ func main() {
 		log.Fatal("? Could not load environment variables", err)
 	}
 
-	router := server.Group("/api")
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowOrigins = []string{"http://localhost:8080", config.ClientOrigin}
+	// corsConfig.AllowAllOrigins = true
+	corsConfig.ExposeHeaders = []string{"Content-Length"}
+	corsConfig.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Accept-Encoding", "X-CSRF-Token"}
+	corsConfig.AllowCredentials = true
+	corsConfig.AllowMethods = []string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
+
+	server.Use(cors.New(corsConfig))
+
+	router := server.Group("api")
 	router.GET("/healthchecker", func(ctx *gin.Context) {
-		message := "Welcome to golang with Gorm and Prostgres"
+		message := "Welcome to Golang with Gorm and Postgres"
 		ctx.JSON(http.StatusOK, gin.H{"status": "success", "message": message})
 	})
 
+	AuthRouteController.AuthRoute(router)
 	log.Fatal(server.Run(":" + config.ServerPort))
 }
